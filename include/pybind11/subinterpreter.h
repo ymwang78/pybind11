@@ -86,11 +86,18 @@ public:
     /// interpreter and its GIL are not required to be held prior to calling this function.
     static subinterpreter create(PyInterpreterConfig const &cfg) {
 
-        error_scope err_scope;
         subinterpreter result;
         {
             // we must hold the main GIL in order to create a subinterpreter
             subinterpreter_scoped_activate main_guard(main());
+
+            // error_scope reads and writes the *current* thread state, so it must be constructed
+            // only after main_guard has attached one: per the note above, callers are allowed to
+            // arrive here with no thread state at all (e.g. after PyEval_SaveThread(), or on a
+            // thread that has never touched Python), and PyErr_Fetch() would then dereference a
+            // null tstate.  A caller that already held the main GIL still gets its own pending
+            // error saved and restored, because main_guard reuses that same thread state.
+            error_scope err_scope;
 
             auto *prev_tstate = PyThreadState_Get();
 
