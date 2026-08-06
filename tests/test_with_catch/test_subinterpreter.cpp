@@ -288,15 +288,19 @@ TEST_CASE("Create Subinterpreter without a thread state") {
             REQUIRE(py::detail::get_thread_state_unchecked() == nullptr);
         }
 
-        // (b) on a thread that never had one
+        // (b) on a thread that never had one.
+        // REQUIRE throws on failure, so we can't use it within the thread: record what we see
+        // and check it on the main test thread after the join.
+        bool thread_started_without_tstate = false;
         bool thread_result = false;
         std::thread([&]() {
-            REQUIRE(py::detail::get_thread_state_unchecked() == nullptr);
+            thread_started_without_tstate = (py::detail::get_thread_state_unchecked() == nullptr);
 
             auto sub = py::subinterpreter::create();
             py::subinterpreter_scoped_activate activate(sub);
             thread_result = (PyInterpreterState_Get() != main_interp);
         }).join();
+        REQUIRE(thread_started_without_tstate);
         REQUIRE(thread_result);
 
         REQUIRE(py::detail::get_thread_state_unchecked() == nullptr);
